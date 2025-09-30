@@ -155,6 +155,65 @@
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
+
+                <!-- Updates -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Updates" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Text="Check for a new version and install updates" Opacity="0.6"/>
+
+                    <StackPanel Spacing="16" Margin="0,12,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Check for updates on launch" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Automatically check for updates when Bluetask starts." Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding UpdateAutoCheckOnLaunch, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <Rectangle Height="1" Fill="#2A2C36" Margin="0,8,0,0"/>
+
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Include preview versions" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Include preview releases when checking for updates." Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding UpdateIncludePrereleases, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <Rectangle Height="1" Fill="#2A2C36" Margin="0,8,0,0"/>
+
+        				<!-- Actions & Status -->
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Status" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding UpdateStatus}" Opacity="0.8" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"/>
+                                    <Button Content="Download and install" Command="{Binding DownloadAndInstallUpdateCommand}" IsEnabled="{Binding IsUpdateAvailable}"/>
+                                </StackPanel>
+                            </Grid>
+                            <ProgressBar Margin="0,8,0,0" Minimum="0" Maximum="1" Value="{Binding DownloadProgress}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </Grid>

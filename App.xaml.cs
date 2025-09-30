@@ -44,6 +44,21 @@ namespace Bluetask
                 try { Services.SystemMonitorService.Shared.Shutdown(); } catch { }
             };
             m_window.Activate();
+
+            // Kick off update check if enabled
+            try
+            {
+                if (Services.SettingsService.UpdateAutoCheckOnLaunch)
+                {
+                    Services.UpdateService.Shared.Configure(
+                        string.IsNullOrWhiteSpace(Services.SettingsService.UpdateRepoOwner) ? "bossman79" : Services.SettingsService.UpdateRepoOwner,
+                        string.IsNullOrWhiteSpace(Services.SettingsService.UpdateRepoName) ? "Bluetask" : Services.SettingsService.UpdateRepoName,
+                        Services.SettingsService.UpdateIncludePrereleases);
+
+                    _ = Services.UpdateService.Shared.CheckForUpdatesAsync();
+                }
+            }
+            catch { }
         }
 
         private Window? m_window;

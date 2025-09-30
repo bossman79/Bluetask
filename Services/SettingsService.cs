@@ -20,6 +20,11 @@ namespace Bluetask.Services
 		// Debug emulation settings (negative disables)
 		private static int _debugGpuCount = -1;
 		private static int _debugDiskCount = -1;
+		// Update settings
+		private static string _updateRepoOwner = "";
+		private static string _updateRepoName = "";
+		private static bool _updateAutoCheckOnLaunch = false;
+		private static bool _updateIncludePrereleases = false;
 
 		static SettingsService()
 		{
@@ -44,6 +49,7 @@ namespace Bluetask.Services
         public static event Action? DebugEmulationChanged;
 		public static event Action<bool>? TwoColumnDrivesAtFourChanged;
 		public static event Action<bool>? CpuPerCoreViewChanged;
+		public static event Action? UpdateSettingsChanged;
 
 		private static void LoadSettings()
 		{
@@ -54,6 +60,10 @@ namespace Bluetask.Services
 			_cpuPerCoreView = SettingsServiceHelper.GetValue(nameof(CpuPerCoreView), false);
 			_debugGpuCount = SettingsServiceHelper.GetValue(nameof(DebugGpuCount), -1);
 			_debugDiskCount = SettingsServiceHelper.GetValue(nameof(DebugDiskCount), -1);
+			_updateRepoOwner = SettingsServiceHelper.GetValue(nameof(UpdateRepoOwner), "");
+			_updateRepoName = SettingsServiceHelper.GetValue(nameof(UpdateRepoName), "");
+			_updateAutoCheckOnLaunch = SettingsServiceHelper.GetValue(nameof(UpdateAutoCheckOnLaunch), false);
+			_updateIncludePrereleases = SettingsServiceHelper.GetValue(nameof(UpdateIncludePrereleases), false);
 		}
 
 		public static bool GroupSameProcessNames
@@ -192,6 +202,86 @@ namespace Bluetask.Services
 				{
 					SettingsServiceHelper.SetValue(nameof(CpuPerCoreView), value);
 					try { CpuPerCoreViewChanged?.Invoke(value); } catch { }
+				}
+			}
+		}
+
+		public static string UpdateRepoOwner
+		{
+			get { lock (_lock) { return _updateRepoOwner; } }
+			set
+			{
+				bool changed;
+				lock (_lock)
+				{
+					if (string.Equals(_updateRepoOwner, value, StringComparison.Ordinal)) return;
+					_updateRepoOwner = value ?? string.Empty;
+					changed = true;
+				}
+				if (changed)
+				{
+					SettingsServiceHelper.SetValue(nameof(UpdateRepoOwner), _updateRepoOwner);
+					try { UpdateSettingsChanged?.Invoke(); } catch { }
+				}
+			}
+		}
+
+		public static string UpdateRepoName
+		{
+			get { lock (_lock) { return _updateRepoName; } }
+			set
+			{
+				bool changed;
+				lock (_lock)
+				{
+					if (string.Equals(_updateRepoName, value, StringComparison.Ordinal)) return;
+					_updateRepoName = value ?? string.Empty;
+					changed = true;
+				}
+				if (changed)
+				{
+					SettingsServiceHelper.SetValue(nameof(UpdateRepoName), _updateRepoName);
+					try { UpdateSettingsChanged?.Invoke(); } catch { }
+				}
+			}
+		}
+
+		public static bool UpdateAutoCheckOnLaunch
+		{
+			get { lock (_lock) { return _updateAutoCheckOnLaunch; } }
+			set
+			{
+				bool changed;
+				lock (_lock)
+				{
+					if (_updateAutoCheckOnLaunch == value) return;
+					_updateAutoCheckOnLaunch = value;
+					changed = true;
+				}
+				if (changed)
+				{
+					SettingsServiceHelper.SetValue(nameof(UpdateAutoCheckOnLaunch), value);
+					try { UpdateSettingsChanged?.Invoke(); } catch { }
+				}
+			}
+		}
+
+		public static bool UpdateIncludePrereleases
+		{
+			get { lock (_lock) { return _updateIncludePrereleases; } }
+			set
+			{
+				bool changed;
+				lock (_lock)
+				{
+					if (_updateIncludePrereleases == value) return;
+					_updateIncludePrereleases = value;
+					changed = true;
+				}
+				if (changed)
+				{
+					SettingsServiceHelper.SetValue(nameof(UpdateIncludePrereleases), value);
+					try { UpdateSettingsChanged?.Invoke(); } catch { }
 				}
 			}
 		}
