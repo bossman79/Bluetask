@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Bluetask.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:Bluetask.ViewModels"
+    xmlns:converters="using:Bluetask.Services.Converters"
+    mc:Ignorable="d"
+    Background="{StaticResource App.GradientBackground}"
+    RequestedTheme="Dark">
+    <Page.Resources>
+        <converters:MemoryMetricToStringConverter x:Key="MemoryMetricToStringConverter"/>
+    </Page.Resources>
+    
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Settings" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,24"/>
+
+        <Grid Grid.Row="1" ColumnSpacing="24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Column -->
+            <StackPanel Grid.Column="0" Spacing="24">
+                <!-- Display & Performance -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Display &amp; Performance" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Text="Configure how processes and system resources are displayed" Opacity="0.6"/>
+
+                    <StackPanel Spacing="16" Margin="0,12,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Combine duplicate processes" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Show one row per app by grouping identical process names; totals are added together." Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding GroupSameProcessNames, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <Rectangle Height="1" Fill="#2A2C36" Margin="0,8,0,0"/>
+
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Make process CPU/GPU add up to totals" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Scale process percentages so the list matches the CPU/GPU total. Turn off for raw values." Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding NormalizeProcessUsage, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Storage & Layout -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Storage &amp; Layout" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Text="Customize storage display and memory calculation options" Opacity="0.6"/>
+
+                    <StackPanel Spacing="16" Margin="0,12,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Use dual-column drives at 4+ drives" VerticalAlignment="Center"/>
+                                    <TextBlock Text="When enabled, the Storage card switches to two columns when 4 or more drives are detected (otherwise at 5+)." Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding TwoColumnDrivesAtFour, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <Rectangle Height="1" Fill="#2A2C36" Margin="0,8,0,0"/>
+                        
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Show memory as" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Choose how the RAM column is calculated." Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding MemoryMetricOptions}" SelectedItem="{Binding SelectedMemoryMetric, Mode=TwoWay}" Width="220" VerticalAlignment="Center">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource MemoryMetricToStringConverter}}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Right Column -->
+            <StackPanel Grid.Column="1" Spacing="24">
+                <!-- Debug -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Debug" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Text="Development tools for hardware emulation and layout testing" Opacity="0.6"/>
+
+                    <StackPanel Spacing="16" Margin="0,12,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Enable emulation" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Emulate hardware for layout testing (no effect on system)." Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" IsOn="{Binding EnableEmulation, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                        
+                        <Rectangle Height="1" Fill="#2A2C36" Margin="0,8,0,0"/>
+
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Hardware simulation" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Set the number of virtual components for testing different layouts" Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <NumberBox Header="GPUs" IsEnabled="{Binding EnableEmulation}" Value="{Binding DebugGpuCount, Mode=TwoWay}" Minimum="0" Maximum="8" Width="80"/>
+                                    <NumberBox Header="Disks" IsEnabled="{Binding EnableEmulation}" Value="{Binding DebugDiskCount, Mode=TwoWay}" Minimum="0" Maximum="16" Width="80"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>
+
+
