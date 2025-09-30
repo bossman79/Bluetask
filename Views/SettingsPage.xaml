@@ -178,22 +178,6 @@
 
                         <Rectangle Height="1" Fill="#2A2C36" Margin="0,8,0,0"/>
 
-                        <StackPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Text="Include preview versions" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Include preview releases when checking for updates." Opacity="0.6" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1" IsOn="{Binding UpdateIncludePrereleases, Mode=TwoWay}" VerticalAlignment="Center"/>
-                            </Grid>
-                        </StackPanel>
-
-                        <Rectangle Height="1" Fill="#2A2C36" Margin="0,8,0,0"/>
-
         				<!-- Actions & Status -->
                         <StackPanel>
                             <Grid>

@@ -25,6 +25,8 @@ namespace Bluetask.Services
 		private static string _updateRepoName = "";
 		private static bool _updateAutoCheckOnLaunch = false;
 		private static bool _updateIncludePrereleases = false;
+		private static string _updateAuthToken = "";
+		private static string _updateLastCommitSha = "";
 
 		static SettingsService()
 		{
@@ -64,6 +66,8 @@ namespace Bluetask.Services
 			_updateRepoName = SettingsServiceHelper.GetValue(nameof(UpdateRepoName), "");
 			_updateAutoCheckOnLaunch = SettingsServiceHelper.GetValue(nameof(UpdateAutoCheckOnLaunch), false);
 			_updateIncludePrereleases = SettingsServiceHelper.GetValue(nameof(UpdateIncludePrereleases), false);
+			_updateAuthToken = SettingsServiceHelper.GetValue(nameof(UpdateAuthToken), "");
+			_updateLastCommitSha = SettingsServiceHelper.GetValue(nameof(UpdateLastCommitSha), "");
 		}
 
 		public static bool GroupSameProcessNames
@@ -281,6 +285,46 @@ namespace Bluetask.Services
 				if (changed)
 				{
 					SettingsServiceHelper.SetValue(nameof(UpdateIncludePrereleases), value);
+					try { UpdateSettingsChanged?.Invoke(); } catch { }
+				}
+			}
+		}
+
+		public static string UpdateAuthToken
+		{
+			get { lock (_lock) { return _updateAuthToken; } }
+			set
+			{
+				bool changed;
+				lock (_lock)
+				{
+					if (string.Equals(_updateAuthToken, value, StringComparison.Ordinal)) return;
+					_updateAuthToken = value ?? string.Empty;
+					changed = true;
+				}
+				if (changed)
+				{
+					SettingsServiceHelper.SetValue(nameof(UpdateAuthToken), _updateAuthToken);
+					try { UpdateSettingsChanged?.Invoke(); } catch { }
+				}
+			}
+		}
+
+		public static string UpdateLastCommitSha
+		{
+			get { lock (_lock) { return _updateLastCommitSha; } }
+			set
+			{
+				bool changed;
+				lock (_lock)
+				{
+					if (string.Equals(_updateLastCommitSha, value, StringComparison.Ordinal)) return;
+					_updateLastCommitSha = value ?? string.Empty;
+					changed = true;
+				}
+				if (changed)
+				{
+					SettingsServiceHelper.SetValue(nameof(UpdateLastCommitSha), _updateLastCommitSha);
 					try { UpdateSettingsChanged?.Invoke(); } catch { }
 				}
 			}

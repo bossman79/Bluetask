@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Net;
 
 namespace Bluetask.Services
 {
@@ -15,6 +16,7 @@ namespace Bluetask.Services
 		public static UpdateService Shared => _shared.Value;
 
 		private readonly HttpClient _httpClient;
+		private string _authToken = string.Empty;
 		private string _repoOwner = "bossman79";
 		private string _repoName = "Bluetask";
 		private bool _includePrereleases = false;
@@ -37,6 +39,7 @@ namespace Bluetask.Services
 			{
 				_httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Bluetask-Updater/1.0");
 				_httpClient.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+				_httpClient.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
 			}
 			catch { }
 		}
@@ -46,6 +49,18 @@ namespace Bluetask.Services
 			_repoOwner = string.IsNullOrWhiteSpace(repoOwner) ? _repoOwner : repoOwner;
 			_repoName = string.IsNullOrWhiteSpace(repoName) ? _repoName : repoName;
 			_includePrereleases = includePrereleases;
+		}
+
+		public void SetAuthToken(string token)
+		{
+			_authToken = token ?? string.Empty;
+			try
+			{
+				_httpClient.DefaultRequestHeaders.Authorization = string.IsNullOrWhiteSpace(_authToken)
+					? null
+					: new System.Net.Http.Headers.AuthenticationHeaderValue("token", _authToken);
+			}
+			catch { }
 		}
 
 		public Version GetCurrentVersion()
@@ -81,11 +96,11 @@ namespace Bluetask.Services
 			try { CheckingChanged?.Invoke(); } catch { }
 			try
 			{
-				var currentVersion = GetCurrentVersion();
-				var latest = await FetchLatestReleaseAsync(_includePrereleases, cancellationToken).ConfigureAwait(false);
-				latest.CurrentVersion = currentVersion;
-				_lastInfo = latest;
-				if (latest.LatestVersion > currentVersion)
+				// Incremental updater: compare latest commit, notify if changed
+				var head = await FetchLatestCommitShaAsync(cancellationToken).ConfigureAwait(false);
+				_lastInfo = new UpdateInfo { TagName = head, ReleaseName = head };
+				var previous = SettingsService.UpdateLastCommitSha;
+				if (!string.IsNullOrEmpty(head) && !string.Equals(previous, head, StringComparison.Ordinal))
 				{
 					try { UpdateAvailable?.Invoke(_lastInfo); } catch { }
 				}
@@ -94,7 +109,7 @@ namespace Bluetask.Services
 					try { NoUpdateAvailable?.Invoke(_lastInfo); } catch { }
 				}
 			}
-			catch (TaskCanceledException tce)
+			catch (TaskCanceledException)
 			{
 				try { CheckFailed?.Invoke("Update check timed out"); } catch { }
 			}
@@ -109,96 +124,104 @@ namespace Bluetask.Services
 			}
 		}
 
-		private async Task<UpdateInfo> FetchLatestReleaseAsync(bool includePrereleases, CancellationToken ct)
+		private async Task<string> FetchLatestCommitShaAsync(CancellationToken ct)
 		{
-			var uri = $"https://api.github.com/repos/{_repoOwner}/{_repoName}/releases?per_page=10";
-			using var resp = await _httpClient.GetAsync(uri, ct).ConfigureAwait(false);
-			resp.EnsureSuccessStatusCode();
-			var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-			using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
-			JsonElement chosen = default;
-			bool found = false;
-			foreach (var rel in doc.RootElement.EnumerateArray())
+			// Get default branch
+			var repoUri = $"https://api.github.com/repos/{_repoOwner}/{_repoName}";
+			using (var repoResp = await _httpClient.GetAsync(repoUri, ct).ConfigureAwait(false))
 			{
-				bool isPrerelease = rel.TryGetProperty("prerelease", out var pre) && pre.GetBoolean();
-				if (!includePrereleases && isPrerelease) continue;
-				if (!rel.TryGetProperty("tag_name", out var tagEl)) continue;
-				var tag = tagEl.GetString() ?? string.Empty;
-				if (!TryParseVersion(tag, out var v)) continue;
-				chosen = rel;
-				found = true;
-				break; // API is sorted newest-first
+				repoResp.EnsureSuccessStatusCode();
+				var repoStream = await repoResp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+				using var repoDoc = await JsonDocument.ParseAsync(repoStream, cancellationToken: ct).ConfigureAwait(false);
+				var defaultBranch = repoDoc.RootElement.TryGetProperty("default_branch", out var db) ? (db.GetString() ?? "main") : "main";
+				var branchUri = $"https://api.github.com/repos/{_repoOwner}/{_repoName}/commits/{defaultBranch}";
+				using var branchResp = await _httpClient.GetAsync(branchUri, ct).ConfigureAwait(false);
+				branchResp.EnsureSuccessStatusCode();
+				var branchStream = await branchResp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+				using var branchDoc = await JsonDocument.ParseAsync(branchStream, cancellationToken: ct).ConfigureAwait(false);
+				return branchDoc.RootElement.TryGetProperty("sha", out var shaEl) ? (shaEl.GetString() ?? string.Empty) : string.Empty;
 			}
-			if (!found)
-			{
-				throw new InvalidOperationException("No suitable release found.");
-			}
-
-			string tagName = chosen.GetProperty("tag_name").GetString() ?? string.Empty;
-			TryParseVersion(tagName, out var latestVersion);
-			string releaseName = chosen.TryGetProperty("name", out var nameEl) ? (nameEl.GetString() ?? tagName) : tagName;
-			bool prereleaseFlag = chosen.TryGetProperty("prerelease", out var pre2) && pre2.GetBoolean();
-
-			string? assetName = null;
-			string? browserUrl = null;
-			if (chosen.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
-			{
-				string[] priorities = new[] { ".msixbundle", ".msix", ".msi", ".exe", ".zip" };
-				foreach (var ext in priorities)
-				{
-					foreach (var a in assets.EnumerateArray())
-					{
-						var name = a.TryGetProperty("name", out var an) ? an.GetString() : null;
-						var url = a.TryGetProperty("browser_download_url", out var au) ? au.GetString() : null;
-						if (!string.IsNullOrEmpty(name) && name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-						{
-							assetName = name;
-							browserUrl = url;
-							break;
-						}
-					}
-					if (assetName != null) break;
-				}
-			}
-
-			return new UpdateInfo
-			{
-				CurrentVersion = GetCurrentVersion(),
-				LatestVersion = latestVersion,
-				TagName = tagName,
-				ReleaseName = releaseName,
-				AssetName = assetName,
-				AssetDownloadUrl = browserUrl,
-				IsPrerelease = prereleaseFlag
-			};
 		}
 
 		public async Task<string?> DownloadInstallerAsync(IProgress<double>? progress = null, CancellationToken ct = default)
 		{
-			var info = _lastInfo;
-			if (info == null || string.IsNullOrWhiteSpace(info.AssetDownloadUrl)) return null;
-			var url = info.AssetDownloadUrl!;
-			var fileName = info.AssetName ?? Path.GetFileName(new Uri(url).AbsolutePath);
-			var tempPath = Path.Combine(Path.GetTempPath(), fileName);
-
-			using var resp = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-			resp.EnsureSuccessStatusCode();
-			var total = resp.Content.Headers.ContentLength;
-			await using var input = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-			await using var output = File.Create(tempPath);
-			var buffer = new byte[81920];
-			long readTotal = 0;
-			int read;
-			while ((read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
+			// Incremental update: download changed files from latest commit and replace
+			var head = await FetchLatestCommitShaAsync(ct).ConfigureAwait(false);
+			if (string.IsNullOrEmpty(head)) return null;
+			var previous = SettingsService.UpdateLastCommitSha;
+			if (string.IsNullOrEmpty(previous))
 			{
-				await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
-				readTotal += read;
-				if (total.HasValue && progress != null && total.Value > 0)
+				// First run: record and return
+				SettingsService.UpdateLastCommitSha = head;
+				return null;
+			}
+			var diffUri = $"https://api.github.com/repos/{_repoOwner}/{_repoName}/compare/{previous}...{head}";
+			using var diffResp = await _httpClient.GetAsync(diffUri, ct).ConfigureAwait(false);
+			diffResp.EnsureSuccessStatusCode();
+			var diffStream = await diffResp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+			using var diffDoc = await JsonDocument.ParseAsync(diffStream, cancellationToken: ct).ConfigureAwait(false);
+			if (!diffDoc.RootElement.TryGetProperty("files", out var filesEl) || filesEl.ValueKind != JsonValueKind.Array)
+			{
+				SettingsService.UpdateLastCommitSha = head;
+				return null;
+			}
+			// Download and replace changed files
+			foreach (var f in filesEl.EnumerateArray())
+			{
+				var status = f.TryGetProperty("status", out var st) ? (st.GetString() ?? "") : "";
+				if (status == "removed") continue; // skip deletions for safety
+				var rawUrl = f.TryGetProperty("raw_url", out var ru) ? ru.GetString() : null;
+				var filename = f.TryGetProperty("filename", out var fn) ? fn.GetString() : null;
+				if (string.IsNullOrEmpty(rawUrl) || string.IsNullOrEmpty(filename)) continue;
+				// Only allow files within app workspace
+				var targetPath = MapRepoPathToLocal(filename);
+				if (string.IsNullOrEmpty(targetPath)) continue;
+				using var fileResp = await _httpClient.GetAsync(rawUrl, ct).ConfigureAwait(false);
+				fileResp.EnsureSuccessStatusCode();
+				var dir = Path.GetDirectoryName(targetPath);
+				if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+				await using var src = await fileResp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+				await using var dst = File.Create(targetPath);
+				await src.CopyToAsync(dst, ct).ConfigureAwait(false);
+			}
+			SettingsService.UpdateLastCommitSha = head;
+			return null;
+		}
+
+		private string? MapRepoPathToLocal(string repoPath)
+		{
+			repoPath = repoPath.Replace("\\", "/");
+			if (repoPath.StartsWith("Services/", StringComparison.OrdinalIgnoreCase) ||
+				repoPath.StartsWith("ViewModels/", StringComparison.OrdinalIgnoreCase) ||
+				repoPath.StartsWith("Views/", StringComparison.OrdinalIgnoreCase) ||
+				repoPath.Equals("Program.cs", StringComparison.OrdinalIgnoreCase) ||
+				repoPath.Equals("App.xaml.cs", StringComparison.OrdinalIgnoreCase) ||
+				repoPath.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase) ||
+				repoPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+			{
+				try
 				{
-					progress.Report((double)readTotal / total.Value);
+					var root = LocateProjectRoot(AppContext.BaseDirectory) ?? AppContext.BaseDirectory;
+					return Path.Combine(root, repoPath.Replace('/', Path.DirectorySeparatorChar));
+				}
+				catch { return null; }
+			}
+			return null;
+		}
+
+		private static string? LocateProjectRoot(string start)
+		{
+			try
+			{
+				var dir = new DirectoryInfo(start);
+				for (int i = 0; i < 6 && dir != null; i++)
+				{
+					if (File.Exists(Path.Combine(dir.FullName, "Bluetask.csproj"))) return dir.FullName;
+					dir = dir.Parent;
 				}
 			}
-			return tempPath;
+			catch { }
+			return null;
 		}
 
 		public bool TryLaunchInstaller(string installerPath)

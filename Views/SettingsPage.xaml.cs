@@ -35,6 +35,8 @@ namespace Bluetask.Views
 			}
 			catch { }
 		}
+
+        // Token entry removed; credentials are embedded per user request
 	}
 }
 

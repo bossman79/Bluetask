@@ -39,12 +39,6 @@ namespace Bluetask.ViewModels
         private bool _updateIncludePrereleases = SettingsService.UpdateIncludePrereleases;
 
         [ObservableProperty]
-        private string _updateRepoOwner = string.IsNullOrEmpty(SettingsService.UpdateRepoOwner) ? "bossman79" : SettingsService.UpdateRepoOwner;
-
-        [ObservableProperty]
-        private string _updateRepoName = string.IsNullOrEmpty(SettingsService.UpdateRepoName) ? "Bluetask" : SettingsService.UpdateRepoName;
-
-        [ObservableProperty]
         private bool _isCheckingUpdate;
 
         [ObservableProperty]
@@ -68,7 +62,7 @@ namespace Bluetask.ViewModels
             DownloadAndInstallUpdateCommand = new AsyncRelayCommand(DownloadAndInstallAsync, CanDownloadInstall);
 
             // Configure updater
-            UpdateService.Shared.Configure(UpdateRepoOwner, UpdateRepoName, UpdateIncludePrereleases);
+            UpdateService.Shared.Configure("bossman79", "Bluetask", false);
             UpdateService.Shared.CheckingChanged += () =>
             {
                 var checking = UpdateService.Shared.IsChecking;
@@ -207,19 +201,6 @@ namespace Bluetask.ViewModels
         partial void OnUpdateIncludePrereleasesChanged(bool value)
         {
             SettingsService.UpdateIncludePrereleases = value;
-            UpdateService.Shared.Configure(UpdateRepoOwner, UpdateRepoName, value);
-        }
-
-        partial void OnUpdateRepoOwnerChanged(string value)
-        {
-            SettingsService.UpdateRepoOwner = value;
-            UpdateService.Shared.Configure(value, UpdateRepoName, UpdateIncludePrereleases);
-        }
-
-        partial void OnUpdateRepoNameChanged(string value)
-        {
-            SettingsService.UpdateRepoName = value;
-            UpdateService.Shared.Configure(UpdateRepoOwner, value, UpdateIncludePrereleases);
         }
     }
 }
