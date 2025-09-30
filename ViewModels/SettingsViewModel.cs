@@ -80,8 +80,11 @@ namespace Bluetask.ViewModels
                 _dispatcher.TryEnqueue(() =>
                 {
                     IsUpdateAvailable = true;
-                    AvailableVersion = info.LatestVersion.ToString();
-                    UpdateStatus = $"Update available: v{AvailableVersion}";
+                    var tag = info.TagName ?? string.Empty;
+                    var shortTag = tag.Length > 7 ? tag.Substring(0, 7) : tag;
+                    UpdateStatus = string.IsNullOrEmpty(shortTag)
+                        ? "Update available"
+                        : $"Update available: {shortTag}";
                     DownloadAndInstallUpdateCommand.NotifyCanExecuteChanged();
                 });
             };
@@ -90,7 +93,7 @@ namespace Bluetask.ViewModels
                 _dispatcher.TryEnqueue(() =>
                 {
                     IsUpdateAvailable = false;
-                    AvailableVersion = info.LatestVersion.ToString();
+                    AvailableVersion = string.Empty;
                     UpdateStatus = "You're up to date";
                     DownloadAndInstallUpdateCommand.NotifyCanExecuteChanged();
                 });
@@ -106,7 +109,8 @@ namespace Bluetask.ViewModels
 
         private bool CanDownloadInstall()
         {
-            return IsUpdateAvailable && UpdateService.Shared.LastInfo != null && !string.IsNullOrEmpty(UpdateService.Shared.LastInfo.AssetDownloadUrl);
+            // For incremental updates, we allow install when an update is flagged
+            return IsUpdateAvailable;
         }
 
         private async Task CheckForUpdatesAsync()
