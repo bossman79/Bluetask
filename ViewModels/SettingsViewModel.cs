@@ -122,12 +122,25 @@ namespace Bluetask.ViewModels
         private async Task DownloadAndInstallAsync()
         {
             if (!CanDownloadInstall()) return;
-            UpdateStatus = "Applying update...";
+            UpdateStatus = "Downloading update...";
             var progress = new Progress<double>(p => DownloadProgress = p);
-            var replaced = await UpdateService.Shared.ApplyIncrementalUpdateAsync(progress);
-            UpdateStatus = replaced > 0 ? $"Updated {replaced} file(s)" : "Already up to date";
-            IsUpdateAvailable = false;
-            DownloadAndInstallUpdateCommand.NotifyCanExecuteChanged();
+            var staging = await UpdateService.Shared.DownloadProgramFolderToStagingAsync(progress);
+            if (string.IsNullOrEmpty(staging))
+            {
+                UpdateStatus = "Download failed";
+                return;
+            }
+            UpdateStatus = "Restarting to apply...";
+            var scheduled = UpdateService.Shared.ScheduleReplaceAndRestart(staging);
+            if (scheduled)
+            {
+                // Close app; script will restart
+                App.Current.Exit();
+            }
+            else
+            {
+                UpdateStatus = "Failed to schedule restart";
+            }
         }
 
         public List<MemoryMetric> MemoryMetricOptions { get; } = new List<MemoryMetric>

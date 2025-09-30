@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net;
+using System.Text;
 
 namespace Bluetask.Services
 {
@@ -211,6 +212,109 @@ namespace Bluetask.Services
 			{
 				try { progress?.Report(t <= 0 ? 0 : (double)i / t); } catch { }
 			}
+		}
+
+		public async Task<string?> DownloadProgramFolderToStagingAsync(IProgress<double>? progress = null, CancellationToken ct = default)
+		{
+			try
+			{
+				// Determine default branch
+				var repoUri = $"https://api.github.com/repos/{_repoOwner}/{_repoName}";
+				using var repoResp = await _httpClient.GetAsync(repoUri, ct).ConfigureAwait(false);
+				repoResp.EnsureSuccessStatusCode();
+				await using var repoStream = await repoResp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+				using var repoDoc = await JsonDocument.ParseAsync(repoStream, cancellationToken: ct).ConfigureAwait(false);
+				var defaultBranch = repoDoc.RootElement.TryGetProperty("default_branch", out var db) ? (db.GetString() ?? "main") : "main";
+
+				// Collect all files under Program/ recursively
+				var files = new System.Collections.Generic.List<(string path, string downloadUrl)>();
+				await CollectContentsRecursiveAsync("Program", defaultBranch, files, ct).ConfigureAwait(false);
+				if (files.Count == 0) return null;
+
+				var stagingRoot = Path.Combine(Path.GetTempPath(), "BluetaskUpdate", Guid.NewGuid().ToString("N"));
+				Directory.CreateDirectory(stagingRoot);
+
+				int index = 0; int total = files.Count;
+				foreach (var f in files)
+				{
+					ct.ThrowIfCancellationRequested();
+					var rel = f.path.StartsWith("Program/", StringComparison.OrdinalIgnoreCase) ? f.path.Substring("Program/".Length) : f.path;
+					var dest = Path.Combine(stagingRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+					var destDir = Path.GetDirectoryName(dest);
+					if (!string.IsNullOrEmpty(destDir)) Directory.CreateDirectory(destDir);
+					using var resp = await _httpClient.GetAsync(f.downloadUrl, ct).ConfigureAwait(false);
+					resp.EnsureSuccessStatusCode();
+					await using var input = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+					await using var output = File.Create(dest);
+					await input.CopyToAsync(output, ct).ConfigureAwait(false);
+					index++;
+					try { progress?.Report(total <= 0 ? 0 : (double)index / total); } catch { }
+				}
+
+				return stagingRoot;
+			}
+			catch { return null; }
+		}
+
+		private async Task CollectContentsRecursiveAsync(string path, string branch, System.Collections.Generic.List<(string path, string downloadUrl)> files, CancellationToken ct)
+		{
+			var api = $"https://api.github.com/repos/{_repoOwner}/{_repoName}/contents/{Uri.EscapeDataString(path)}?ref={Uri.EscapeDataString(branch)}";
+			using var resp = await _httpClient.GetAsync(api, ct).ConfigureAwait(false);
+			if (resp.StatusCode == HttpStatusCode.NotFound) return;
+			resp.EnsureSuccessStatusCode();
+			await using var s = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+			using var doc = await JsonDocument.ParseAsync(s, cancellationToken: ct).ConfigureAwait(false);
+			if (doc.RootElement.ValueKind != JsonValueKind.Array) return;
+			foreach (var item in doc.RootElement.EnumerateArray())
+			{
+				var type = item.TryGetProperty("type", out var t) ? (t.GetString() ?? string.Empty) : string.Empty;
+				var itemPath = item.TryGetProperty("path", out var p) ? (p.GetString() ?? string.Empty) : string.Empty;
+				if (string.IsNullOrEmpty(itemPath)) continue;
+				if (string.Equals(type, "file", StringComparison.OrdinalIgnoreCase))
+				{
+					var dl = item.TryGetProperty("download_url", out var du) ? du.GetString() : null;
+					if (!string.IsNullOrEmpty(dl)) files.Add((itemPath, dl!));
+				}
+				else if (string.Equals(type, "dir", StringComparison.OrdinalIgnoreCase))
+				{
+					await CollectContentsRecursiveAsync(itemPath, branch, files, ct).ConfigureAwait(false);
+				}
+			}
+		}
+
+		public bool ScheduleReplaceAndRestart(string stagingRoot)
+		{
+			try
+			{
+				var exePath = Environment.ProcessPath ?? (Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty);
+				if (string.IsNullOrEmpty(exePath)) return false;
+				var pid = Process.GetCurrentProcess().Id;
+				var targetDir = Path.GetDirectoryName(exePath) ?? AppContext.BaseDirectory;
+				var scriptPath = Path.Combine(stagingRoot, "apply_update.cmd");
+				var sb = new StringBuilder();
+				sb.AppendLine("@echo off");
+				sb.AppendLine("setlocal enabledelayedexpansion");
+				sb.AppendLine($"set SRC=\"{stagingRoot}\"");
+				sb.AppendLine($"set DEST=\"{targetDir}\"");
+				sb.AppendLine($"set EXE=\"{exePath}\"");
+				sb.AppendLine($"set PID={pid}");
+				sb.AppendLine(":wait");
+				sb.AppendLine("for /f \"tokens=2 delims==\" %%a in ('wmic process where ProcessId^=!PID! get ProcessId /value ^| find \"=\"') do set found=%%a");
+				sb.AppendLine("if defined found ( timeout /T 1 /NOBREAK >NUL & set found= & goto wait )");
+				sb.AppendLine("robocopy %SRC% %DEST% /E /XO /R:3 /W:1 /NFL /NDL /NJH /NJS >NUL");
+				sb.AppendLine("start \"\" %EXE%");
+				sb.AppendLine("exit /b 0");
+				File.WriteAllText(scriptPath, sb.ToString(), Encoding.ASCII);
+				var psi = new ProcessStartInfo
+				{
+					FileName = scriptPath,
+					UseShellExecute = true,
+					WindowStyle = ProcessWindowStyle.Hidden
+				};
+				Process.Start(psi);
+				return true;
+			}
+			catch { return false; }
 		}
 
 		private string? MapRepoPathToLocal(string repoPath)
