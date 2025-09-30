@@ -127,7 +127,8 @@ namespace Bluetask.ViewModels
             var staging = await UpdateService.Shared.DownloadProgramFolderToStagingAsync(progress);
             if (string.IsNullOrEmpty(staging))
             {
-                UpdateStatus = "Download failed";
+                var err = UpdateService.Shared.LastError;
+                UpdateStatus = string.IsNullOrEmpty(err) ? "Download failed" : $"Download failed: {err}";
                 return;
             }
             UpdateStatus = "Restarting to apply...";

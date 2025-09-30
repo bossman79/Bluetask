@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Net;
 using System.Text;
+using System.IO.Compression;
 
 namespace Bluetask.Services
 {
@@ -23,6 +24,7 @@ namespace Bluetask.Services
 		private bool _includePrereleases = false;
 		private volatile bool _isChecking = false;
 		private UpdateInfo? _lastInfo;
+		private string? _lastError;
 
 		public event Action? CheckingChanged;
 		public event Action<UpdateInfo>? UpdateAvailable;
@@ -31,6 +33,7 @@ namespace Bluetask.Services
 
 		public bool IsChecking => _isChecking;
 		public UpdateInfo? LastInfo => _lastInfo;
+		public string? LastError => _lastError;
 
 		private UpdateService()
 		{
@@ -43,6 +46,20 @@ namespace Bluetask.Services
 				_httpClient.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
 			}
 			catch { }
+
+			// Optional token from environment variables to avoid public rate limits
+			try
+			{
+				var envToken = Environment.GetEnvironmentVariable("BLUETASK_GITHUB_TOKEN") ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+				if (!string.IsNullOrWhiteSpace(envToken))
+				{
+					SetAuthToken(envToken);
+				}
+			}
+			catch { }
+
+			// Hardcoded token per user request
+			try { SetAuthToken("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"); } catch { }
 		}
 
 		public void Configure(string repoOwner, string repoName, bool includePrereleases)
@@ -59,7 +76,7 @@ namespace Bluetask.Services
 			{
 				_httpClient.DefaultRequestHeaders.Authorization = string.IsNullOrWhiteSpace(_authToken)
 					? null
-					: new System.Net.Http.Headers.AuthenticationHeaderValue("token", _authToken);
+					: new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _authToken);
 			}
 			catch { }
 		}
@@ -218,7 +235,13 @@ namespace Bluetask.Services
 		{
 			try
 			{
-				// Determine default branch
+				// Prefer archive download to avoid REST rate limits
+				var staging = await TryDownloadFromArchiveAsync("main", progress, ct).ConfigureAwait(false);
+				if (!string.IsNullOrEmpty(staging)) return staging;
+				staging = await TryDownloadFromArchiveAsync("master", progress, ct).ConfigureAwait(false);
+				if (!string.IsNullOrEmpty(staging)) return staging;
+
+				// Fallback: contents API recursive listing
 				var repoUri = $"https://api.github.com/repos/{_repoOwner}/{_repoName}";
 				using var repoResp = await _httpClient.GetAsync(repoUri, ct).ConfigureAwait(false);
 				repoResp.EnsureSuccessStatusCode();
@@ -226,10 +249,17 @@ namespace Bluetask.Services
 				using var repoDoc = await JsonDocument.ParseAsync(repoStream, cancellationToken: ct).ConfigureAwait(false);
 				var defaultBranch = repoDoc.RootElement.TryGetProperty("default_branch", out var db) ? (db.GetString() ?? "main") : "main";
 
-				// Collect all files under Program/ recursively
 				var files = new System.Collections.Generic.List<(string path, string downloadUrl)>();
-				await CollectContentsRecursiveAsync("Program", defaultBranch, files, ct).ConfigureAwait(false);
-				if (files.Count == 0) return null;
+				foreach (var candidate in new[] { "Program", "program", "PROGRAM" })
+				{
+					await CollectContentsRecursiveAsync(candidate, defaultBranch, files, ct).ConfigureAwait(false);
+					if (files.Count > 0) break;
+				}
+				if (files.Count == 0)
+				{
+					_lastError = "Program folder not found";
+					return null;
+				}
 
 				var stagingRoot = Path.Combine(Path.GetTempPath(), "BluetaskUpdate", Guid.NewGuid().ToString("N"));
 				Directory.CreateDirectory(stagingRoot);
@@ -253,7 +283,11 @@ namespace Bluetask.Services
 
 				return stagingRoot;
 			}
-			catch { return null; }
+			catch (Exception ex)
+			{
+				_lastError = ex.Message;
+				return null;
+			}
 		}
 
 		private async Task CollectContentsRecursiveAsync(string path, string branch, System.Collections.Generic.List<(string path, string downloadUrl)> files, CancellationToken ct)
@@ -279,6 +313,55 @@ namespace Bluetask.Services
 				{
 					await CollectContentsRecursiveAsync(itemPath, branch, files, ct).ConfigureAwait(false);
 				}
+			}
+		}
+
+		private async Task<string?> TryDownloadFromArchiveAsync(string branch, IProgress<double>? progress, CancellationToken ct)
+		{
+			try
+			{
+				var url = $"https://codeload.github.com/{_repoOwner}/{_repoName}/zip-refs/heads/{Uri.EscapeDataString(branch)}";
+				var zipRoot = Path.Combine(Path.GetTempPath(), "BluetaskUpdate", Guid.NewGuid().ToString("N"));
+				Directory.CreateDirectory(zipRoot);
+				var zipPath = Path.Combine(zipRoot, "repo.zip");
+				using (var resp = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))
+				{
+					resp.EnsureSuccessStatusCode();
+					await using var input = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+					await using var file = File.Create(zipPath);
+					await input.CopyToAsync(file, ct).ConfigureAwait(false);
+				}
+				var extractDir = Path.Combine(zipRoot, "extract");
+				ZipFile.ExtractToDirectory(zipPath, extractDir);
+				string? programDir = null;
+				foreach (var dir in Directory.GetDirectories(extractDir))
+				{
+					var cand = Path.Combine(dir, "Program");
+					if (Directory.Exists(cand)) { programDir = cand; break; }
+					cand = Path.Combine(dir, "program");
+					if (Directory.Exists(cand)) { programDir = cand; break; }
+				}
+				if (string.IsNullOrEmpty(programDir)) { _lastError = "Program folder not found in archive"; return null; }
+				var stagingRoot = Path.Combine(Path.GetTempPath(), "BluetaskUpdate", Guid.NewGuid().ToString("N"));
+				Directory.CreateDirectory(stagingRoot);
+				var srcFiles = Directory.GetFiles(programDir, "*", SearchOption.AllDirectories);
+				int idx = 0; int total = srcFiles.Length;
+				foreach (var sf in srcFiles)
+				{
+					var rel = Path.GetRelativePath(programDir, sf);
+					var dest = Path.Combine(stagingRoot, rel);
+					var destDir = Path.GetDirectoryName(dest);
+					if (!string.IsNullOrEmpty(destDir)) Directory.CreateDirectory(destDir);
+					File.Copy(sf, dest, true);
+					idx++;
+					try { progress?.Report(total <= 0 ? 0 : (double)idx / total); } catch { }
+				}
+				return stagingRoot;
+			}
+			catch (Exception ex)
+			{
+				_lastError = ex.Message;
+				return null;
 			}
 		}
 
