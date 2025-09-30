@@ -100,7 +100,17 @@ namespace Bluetask.Services
 				var head = await FetchLatestCommitShaAsync(cancellationToken).ConfigureAwait(false);
 				_lastInfo = new UpdateInfo { TagName = head, ReleaseName = head };
 				var previous = SettingsService.UpdateLastCommitSha;
-				if (!string.IsNullOrEmpty(head) && !string.Equals(previous, head, StringComparison.Ordinal))
+				if (string.IsNullOrEmpty(head))
+				{
+					try { NoUpdateAvailable?.Invoke(_lastInfo); } catch { }
+				}
+				else if (string.IsNullOrEmpty(previous))
+				{
+					// First run: baseline to current head; don't prompt update
+					SettingsService.UpdateLastCommitSha = head;
+					try { NoUpdateAvailable?.Invoke(_lastInfo); } catch { }
+				}
+				else if (!string.Equals(previous, head, StringComparison.Ordinal))
 				{
 					try { UpdateAvailable?.Invoke(_lastInfo); } catch { }
 				}
@@ -145,15 +155,20 @@ namespace Bluetask.Services
 
 		public async Task<string?> DownloadInstallerAsync(IProgress<double>? progress = null, CancellationToken ct = default)
 		{
-			// Incremental update: download changed files from latest commit and replace
+			// For backward compatibility, call incremental updater and return null
+			await ApplyIncrementalUpdateAsync(progress, ct).ConfigureAwait(false);
+			return null;
+		}
+
+		public async Task<int> ApplyIncrementalUpdateAsync(IProgress<double>? progress = null, CancellationToken ct = default)
+		{
 			var head = await FetchLatestCommitShaAsync(ct).ConfigureAwait(false);
-			if (string.IsNullOrEmpty(head)) return null;
+			if (string.IsNullOrEmpty(head)) return 0;
 			var previous = SettingsService.UpdateLastCommitSha;
 			if (string.IsNullOrEmpty(previous))
 			{
-				// First run: record and return
 				SettingsService.UpdateLastCommitSha = head;
-				return null;
+				return 0;
 			}
 			var diffUri = $"https://api.github.com/repos/{_repoOwner}/{_repoName}/compare/{previous}...{head}";
 			using var diffResp = await _httpClient.GetAsync(diffUri, ct).ConfigureAwait(false);
@@ -163,19 +178,22 @@ namespace Bluetask.Services
 			if (!diffDoc.RootElement.TryGetProperty("files", out var filesEl) || filesEl.ValueKind != JsonValueKind.Array)
 			{
 				SettingsService.UpdateLastCommitSha = head;
-				return null;
+				return 0;
 			}
-			// Download and replace changed files
+			int total = 0;
+			foreach (var _ in filesEl.EnumerateArray()) total++;
+			int replaced = 0;
+			int index = 0;
 			foreach (var f in filesEl.EnumerateArray())
 			{
+				index++;
 				var status = f.TryGetProperty("status", out var st) ? (st.GetString() ?? "") : "";
-				if (status == "removed") continue; // skip deletions for safety
+				if (status == "removed") { Report(index, total); continue; }
 				var rawUrl = f.TryGetProperty("raw_url", out var ru) ? ru.GetString() : null;
 				var filename = f.TryGetProperty("filename", out var fn) ? fn.GetString() : null;
-				if (string.IsNullOrEmpty(rawUrl) || string.IsNullOrEmpty(filename)) continue;
-				// Only allow files within app workspace
+				if (string.IsNullOrEmpty(rawUrl) || string.IsNullOrEmpty(filename)) { Report(index, total); continue; }
 				var targetPath = MapRepoPathToLocal(filename);
-				if (string.IsNullOrEmpty(targetPath)) continue;
+				if (string.IsNullOrEmpty(targetPath)) { Report(index, total); continue; }
 				using var fileResp = await _httpClient.GetAsync(rawUrl, ct).ConfigureAwait(false);
 				fileResp.EnsureSuccessStatusCode();
 				var dir = Path.GetDirectoryName(targetPath);
@@ -183,9 +201,16 @@ namespace Bluetask.Services
 				await using var src = await fileResp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 				await using var dst = File.Create(targetPath);
 				await src.CopyToAsync(dst, ct).ConfigureAwait(false);
+				replaced++;
+				Report(index, total);
 			}
 			SettingsService.UpdateLastCommitSha = head;
-			return null;
+			return replaced;
+
+			void Report(int i, int t)
+			{
+				try { progress?.Report(t <= 0 ? 0 : (double)i / t); } catch { }
+			}
 		}
 
 		private string? MapRepoPathToLocal(string repoPath)
