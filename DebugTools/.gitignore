@@ -1,0 +1,11 @@
+# Ignore actual debugging tool binaries (they're large and not meant for git)
+# Users should obtain these from Windows SDK per README.md
+*.exe
+*.dll
+*.yes
+
+# Keep the structure
+!.gitignore
+!README.md
+
+

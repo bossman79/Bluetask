@@ -1,0 +1,217 @@
+<Page
+    x:Class="Bluetask.Views.Performance.CpuPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Bluetask.Views.Performance"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:Bluetask.ViewModels"
+    xmlns:converters="using:Bluetask.Services.Converters"
+    xmlns:sys="using:System"
+    mc:Ignorable="d"
+    Background="Transparent">
+    <Page.Resources>
+        <converters:CpuHistoryToPointsConverter x:Key="CpuHistoryToPointsConverter"/>
+    </Page.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,24">
+            <TextBlock Text="CPU"
+                       FontSize="32" 
+                       FontWeight="SemiBold" 
+                       Foreground="White"/>
+            <TextBlock Text="{Binding Cpu.Name, Mode=OneWay}"
+                       FontSize="16" 
+                       Foreground="White" 
+                       Opacity="0.7"
+                       Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <!-- Chart and Stats Area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="220"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Chart -->
+            <Border Grid.Column="0" Background="#1E2736" CornerRadius="8" BorderBrush="#2A2C36" BorderThickness="1" Margin="0,0,12,0">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header: % Utilization / 60 seconds -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="% Utilization" FontSize="12" Foreground="White" Opacity="0.6"/>
+                        <TextBlock Grid.Column="1" Text="60 seconds" FontSize="12" Foreground="White" Opacity="0.6"/>
+                    </Grid>
+
+                    <!-- Chart Canvas -->
+                    <Grid Grid.Row="1">
+                        <Canvas Height="280">
+                            <Polyline Points="{Binding ChartHistory, Converter={StaticResource CpuHistoryToPointsConverter}, Mode=OneWay}" Stroke="{StaticResource App.CpuAccent}" StrokeThickness="2" Fill="Transparent"/>
+                        </Canvas>
+                        <!-- Y-axis labels -->
+                        <StackPanel VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,10">
+                            <TextBlock Text="100%" FontSize="12" Foreground="White" Opacity="0.5"/>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left">
+                            <TextBlock Text="50%" FontSize="12" Foreground="White" Opacity="0.5"/>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="0,0,0,10">
+                            <TextBlock Text="0%" FontSize="12" Foreground="White" Opacity="0.5"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Right: Utilization and Stats stacked -->
+            <Grid Grid.Column="1" Margin="12,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <!-- Top: Large Utilization -->
+                <Border Background="#1E2736" CornerRadius="8" BorderBrush="#2A2C36" BorderThickness="1" Grid.Row="0">
+                    <Grid Margin="16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" HorizontalAlignment="Left">
+                                <Run Text="{x:Bind sys:String.Format('{0:F0}', ViewModel.Cpu.Usage), Mode=OneWay}"
+                                     FontSize="64"
+                                     FontWeight="Bold"
+                                     Foreground="White"/>
+                                <Run Text="%"
+                                     FontSize="48"
+                                     FontWeight="Bold"
+                                     Foreground="White"/>
+                        </TextBlock>
+                        <TextBlock Grid.Row="1"
+                                   Text="{Binding CpuSpeedGHz, Mode=OneWay}"
+                                   FontSize="16"
+                                   Foreground="{StaticResource App.CpuAccent}"
+                                   HorizontalAlignment="Left"
+                                   Margin="0,8,0,0"/>
+                    </Grid>
+                </Border>
+
+                <!-- Bottom: Stats Grid -->
+                <Border Background="#1E2736" CornerRadius="8" BorderBrush="#2A2C36" BorderThickness="1" Margin="0,12,0,0" Grid.Row="1" VerticalAlignment="Stretch">
+                    <Grid Margin="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <!-- Processes -->
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,8">
+                            <TextBlock Text="Processes" FontSize="12" Foreground="White" Opacity="0.6"/>
+                            <TextBlock Text="{Binding ProcessCount, Mode=OneWay}" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                        </StackPanel>
+
+                        <!-- Threads -->
+                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,8">
+                            <TextBlock Text="Threads" FontSize="12" Foreground="White" Opacity="0.6"/>
+                            <TextBlock Text="{x:Bind sys:String.Format('{0:N0}', ViewModel.ThreadCount), Mode=OneWay}" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                        </StackPanel>
+
+                        <!-- Handles -->
+                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,8">
+                            <TextBlock Text="Handles" FontSize="12" Foreground="White" Opacity="0.6"/>
+                            <TextBlock Text="{x:Bind sys:String.Format('{0:N0}', ViewModel.HandleCount), Mode=OneWay}" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                        </StackPanel>
+
+                        <!-- Up time -->
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,8">
+                            <TextBlock Text="Up time" FontSize="12" Foreground="White" Opacity="0.6"/>
+                            <TextBlock Text="{Binding UpTime, Mode=OneWay}" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Bottom CPU Specs -->
+        <Border Grid.Row="2" 
+                Background="#1E2736" 
+                CornerRadius="8"
+                BorderBrush="#2A2C36" 
+                BorderThickness="1"
+                Padding="24"
+                Margin="0,24,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Base speed -->
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,24,16">
+                    <TextBlock Text="Base speed" FontSize="14" Foreground="White" Opacity="0.7"/>
+                    <TextBlock Text="{Binding Cpu.BaseSpeed, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Cores -->
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,24,16">
+                    <TextBlock Text="Cores" FontSize="14" Foreground="White" Opacity="0.7"/>
+                    <TextBlock Text="{Binding Cpu.Cores, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Logical processors -->
+                <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,24,16">
+                    <TextBlock Text="Logical processors" FontSize="14" Foreground="White" Opacity="0.7"/>
+                    <TextBlock Text="{Binding Cpu.LogicalProcessors, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
+                </StackPanel>
+                
+                <!-- Virtualization -->
+                <StackPanel Grid.Row="0" Grid.Column="3" Margin="0,0,0,16">
+                    <TextBlock Text="Virtualization" FontSize="14" Foreground="White" Opacity="0.7"/>
+                    <TextBlock Text="{Binding Cpu.Virtualization, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- L1 cache -->
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,24,0">
+                    <TextBlock Text="L1 cache" FontSize="14" Foreground="White" Opacity="0.7"/>
+                    <TextBlock Text="{Binding Cpu.L1Cache, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- L2 cache -->
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,24,0">
+                    <TextBlock Text="L2 cache" FontSize="14" Foreground="White" Opacity="0.7"/>
+                    <TextBlock Text="{Binding Cpu.L2Cache, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- L3 cache -->
+                <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,24,0">
+                    <TextBlock Text="L3 cache" FontSize="14" Foreground="White" Opacity="0.7"/>
+                    <TextBlock Text="{Binding Cpu.L3Cache, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>

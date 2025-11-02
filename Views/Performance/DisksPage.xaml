@@ -1,0 +1,118 @@
+ <Page
+    x:Class="Bluetask.Views.Performance.DisksPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Bluetask.Views.Performance"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:Bluetask.ViewModels"
+    xmlns:converters="using:Bluetask.Services.Converters"
+    xmlns:sys="using:System"
+    xmlns:models="using:Bluetask.Models"
+    mc:Ignorable="d"
+    Background="Transparent">
+    <Page.Resources>
+        <converters:HistoryToPointsConverter x:Key="HistoryToPointsConverter"/>
+    </Page.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,24">
+            <TextBlock Text="Disks"
+                       FontSize="32" 
+                       FontWeight="SemiBold" 
+                       Foreground="White"/>
+            <TextBlock Text="{Binding DrivesSummary, Mode=OneWay}"
+                       FontSize="16" 
+                       Foreground="White" 
+                       Opacity="0.7"
+                       Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="220"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="#1E2736" CornerRadius="8" BorderBrush="#2A2C36" BorderThickness="1" Margin="0,0,12,0">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="% Active time" FontSize="12" Foreground="White" Opacity="0.6"/>
+                        <TextBlock Grid.Column="1" Text="60 seconds" FontSize="12" Foreground="White" Opacity="0.6"/>
+                    </Grid>
+
+                    <Grid Grid.Row="1">
+                        <Canvas Height="280">
+                            <Polyline Points="{Binding ChartHistory, Converter={StaticResource HistoryToPointsConverter}, Mode=OneWay}" Stroke="{StaticResource App.DiskAccent}" StrokeThickness="2" Fill="Transparent"/>
+                        </Canvas>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <ItemsControl Grid.Column="1" ItemsSource="{Binding Drives}" Margin="12,0,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:StorageInfo">
+                        <Border Background="#1E2736" CornerRadius="8" BorderBrush="#2A2C36" BorderThickness="1" Margin="0,0,0,12">
+                            <StackPanel Margin="16">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
+                                <TextBlock>
+                                    <Run Text="{x:Bind Usage}" FontSize="32" FontWeight="Bold" Foreground="White"/>
+                                </TextBlock>
+                                <TextBlock Text="Active time" Opacity="0.6"/>
+                                <TextBlock Text="{Binding AvgResponseTime}" Opacity="0.6"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+
+        <ItemsControl Grid.Row="2" ItemsSource="{Binding Drives}" Margin="0,24,0,0">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="models:StorageInfo">
+                    <Border Background="#1E2736" CornerRadius="8" BorderBrush="#2A2C36" BorderThickness="1" Padding="24" Margin="0,0,0,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Name}" Grid.ColumnSpan="4" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Capacity" Opacity="0.7"/>
+                                <TextBlock Text="{Binding Capacity}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Type" Opacity="0.7"/>
+                                <TextBlock Text="{Binding DiskType}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="System disk" Opacity="0.7"/>
+                                <TextBlock Text="{Binding IsSystemDisk}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Text="Page file" Opacity="0.7"/>
+                                <TextBlock Text="{Binding HasPageFile}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Grid>
+</Page>

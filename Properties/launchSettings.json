@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "Bluetask (Package)": {
+      "commandName": "MsixPackage",
+      "commandLineArgs": "BLUETASK_DEBUG_GPU_COUNT=1"
+    },
+    "Bluetask (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Bluetask.Services.Converters.ResponsivePerformanceGraph"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Bluetask.Services.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    SizeChanged="OnSizeChanged">
+
+    <UserControl.Resources>
+        <local:ModernPerformanceGraphConverter x:Key="GraphConverter"/>
+    </UserControl.Resources>
+
+    <Grid x:Name="GraphContainer" 
+          Background="Transparent">
+        <Grid.Clip>
+            <RectangleGeometry x:Name="ClipGeometry" Rect="0,0,400,200"/>
+        </Grid.Clip>
+        
+        <!-- Performance graph content will be dynamically created -->
+        <ContentPresenter x:Name="GraphPresenter" 
+                          HorizontalAlignment="Stretch" 
+                          VerticalAlignment="Stretch" />
+        
+        <!-- Y-axis labels overlay -->
+        <Canvas x:Name="LabelsCanvas" 
+                IsHitTestVisible="False"
+                Opacity="0.6">
+            <!-- Labels will be added programmatically -->
+        </Canvas>
+    </Grid>
+</UserControl>
