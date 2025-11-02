@@ -58,8 +58,8 @@ namespace Bluetask.Services
 			}
 			catch { }
 
-			// Hardcoded token per user request (used as a default)
-			try { if (string.IsNullOrWhiteSpace(_authToken)) SetAuthToken("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"); } catch { }
+			// Hardcoded token removed for security - use environment variable BLUETASK_GITHUB_TOKEN or configure in Settings
+			// GitHub blocks pushes with tokens in code. Set token via: setx BLUETASK_GITHUB_TOKEN "your_token_here"
 
 			// Override with persisted settings token if present and keep in sync with changes
 			try
